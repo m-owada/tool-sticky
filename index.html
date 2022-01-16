@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.6.0.min.js"></script>
+        <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min.js"></script>
+        <script type="text/javascript">
+            $(function()
+            {
+                // ソケット通信
+                let socket;
+                let json;
+                function connect()
+                {
+                    try
+                    {
+                        socket = new WebSocket("ws://localhost:8000/StickyNotes.ashx");
+                        socket.onopen = function()
+                        {
+                            //console.log("WebSocket onopen");
+                            socket.send("");
+                        };
+                        socket.onclose = function()
+                        {
+                            //console.log("WebSocket onclose");
+                            disconnect();
+                        };
+                        socket.onmessage = function(msg)
+                        {
+                            //console.log("WebSocket onmessage " + msg.data);
+                            load(msg.data);
+                            json = msg.data;
+                        };
+                    }
+                    catch(ex)
+                    {
+                        alert(ex);
+                    }
+                }
+                connect();
+                
+                // 切断
+                function disconnect()
+                {
+                    $('#add').hide();
+                    $('#download').hide();
+                    $('#error').text("サーバーに接続できませんでした。しばらく時間をおいて再度お試しください。");
+                    $('.note').remove();
+                    connect();
+                }
+                
+                // Addボタン設定
+                $('#add').button(
+                {
+                    icons:
+                    {
+                        primary: "ui-icon-plus"
+                    },
+                    text: true
+                });
+                
+                // Addボタン押下
+                $('#add').click(function()
+                {
+                    let $note = add();
+                    send('#' + $note.attr('id'));
+                });
+                
+                // Downloadボタン設定
+                $('#download').button(
+                {
+                    icons:
+                    {
+                        primary: "ui-icon-document"
+                    },
+                    text: true
+                });
+                
+                // Downloadボタン押下
+                $('#download').click(function()
+                {
+                    let blob = new Blob([json], { type: "application\/json" });
+                    if(window.navigator.msSaveBlob)
+                    {
+                        window.navigator.msSaveBlob(blob, "notes.json");
+                    }
+                    else
+                    {
+                        $('<a></a>', { href: window.URL.createObjectURL(blob), download: "notes.json", target: "_blank" })[0].click();
+                    }
+                });
+                
+                // 付箋紙の追加
+                function add()
+                {
+                    let $note = $('<div class="note" id="note">' +
+                                  '<div class="message">ダブルクリックで編集</div>' +
+                                  '<a class="url" href="" target="_blank" rel="noopener noreferrer">LINK</a>' +
+                                  '<input type="hidden" class="no" value="0" />' +
+                                  '<input type="hidden" class="color" value="blue" />' +
+                                  '<input type="hidden" class="timestamp" value="" />' +
+                                  '<input type="hidden" class="delete" value="0" />' +
+                                  '</div>');
+                    $note.draggable(
+                    {
+                        stack: ".note",
+                        stop: function(e, ui)
+                        {
+                            $(this).css('position', 'absolute');
+                            $(this).css('top', ui.offset.top);
+                            $(this).css('left', ui.offset.left);
+                            send('#' + $(this).attr('id'));
+                        }
+                    });
+                    $note.resizable(
+                    {
+                        minWidth: 80,
+                        minHeight: 40,
+                        maxWidth: 800,
+                        maxHeight: 400,
+                        stop: function(e, ui)
+                        {
+                            send('#' + $(this).attr('id'));
+                        }
+                    });
+                    $note.dblclick(function()
+                    {
+                        if($(this).find('.no').val() != "0")
+                        {
+                            $('#dialog_message').val($(this).find('.message').text());
+                            $('#dialog_url').val($(this).find('.url').attr('href'));
+                            $('input:radio[name="dialog_color"]').val([$(this).find('.color').val()]);
+                            $('#dialog_target').val($(this).attr('id'));
+                            $('#dialog_timestamp').val($(this).find('.timestamp').val());
+                            $('#dialog').dialog("open");
+                        }
+                    });
+                    $note.find('.url').text(($note.find('.url').attr('href') == "")?"":"LINK");
+                    $note.css('background-image', color($note.find('.color').val()));
+                    $('#container').append($note);
+                    return $note;
+                }
+                
+                // ダイアログ設定
+                $('#dialog').dialog(
+                {
+                    autoOpen: false,
+                    width: 400,
+                    height: "auto",
+                    modal: true,
+                    resizable: false,
+                    title: document.title,
+                    buttons:
+                    {
+                        "更新": function()
+                        {
+                            let target = '#' + $('#dialog_target').val();
+                            if($('#dialog_message').val().length > 1000)
+                            {
+                                alert("本文は1,000文字以内で入力してください。");
+                                return;
+                            }
+                            if($('#dialog_url').val().length > 2083)
+                            {
+                                alert("URLは2,083文字以内で入力してください。");
+                                return;
+                            }
+                            if($('#dialog_url').val() != "" && !$('#dialog_url').val().match(/^(ftp|http|https):\/\/[^ "]+$/))
+                            {
+                                alert("URLの入力形式に誤りがあります。");
+                                return;
+                            }
+                            if($('#dialog_timestamp').val() != $(target).find('.timestamp').val())
+                            {
+                                alert("既に他のユーザーによって変更されています。操作を中止してください。");
+                                return;
+                            }
+                            $(target).find('.message').text($('#dialog_message').val());
+                            $(target).find('.url').attr('href', $('#dialog_url').val());
+                            $(target).find('.url').text(($('#dialog_url').val() == "")?"":"LINK");
+                            $(target).find('.color').val($('input:radio[name="dialog_color"]:checked').val());
+                            $(target).css('background-image', color($('input:radio[name="dialog_color"]:checked').val()));
+                            $(this).dialog("close");
+                            send(target);
+                        },
+                        "削除": function()
+                        {
+                            let target = '#' + $('#dialog_target').val();
+                            if($('#dialog_timestamp').val() != $(target).find('.timestamp').val())
+                            {
+                                alert("既に他のユーザーによって変更されています。操作を中止してください。");
+                                return;
+                            }
+                            if(window.confirm("削除してもよろしいですか？"))
+                            {
+                                $(target).find('.delete').val("1");
+                                $(this).dialog("close");
+                                send(target);
+                            }
+                        },
+                        "中止": function()
+                        {
+                            $(this).dialog("close");
+                        }
+                    }
+                });
+                
+                // 付箋紙の送信
+                function send(target)
+                {
+                    if(!$(target)[0]) return;
+                    let note =
+                    {
+                        message: $(target).find('.message').text(),
+                        url: $(target).find('.url').attr('href'),
+                        no: Number($(target).find('.no').val()),
+                        color: $(target).find('.color').val(),
+                        position: $(target).css('position'),
+                        top: $(target).css('top'),
+                        left: $(target).css('left'),
+                        width: $(target).css('width'),
+                        height: $(target).css('height'),
+                        timestamp: $(target).find('.timestamp').val(),
+                        delete: Number($(target).find('.delete').val())
+                    }
+                    socket.send(JSON.stringify(note));
+                }
+                
+                // 付箋紙の読込
+                function load(data)
+                {
+                    $('#add').show();
+                    $('#download').show();
+                    $('#error').text("");
+                    $(".note").remove();
+                    let notes = JSON.parse(data);
+                    $.each(notes, function(index, val)
+                    {
+                        let $note = add();
+                        $note.attr('id', 'note' + val.no);
+                        $note.find('.message').text(val.message);
+                        $note.find('.url').attr('href', val.url);
+                        $note.find('.url').text((val.url == "")?"":"LINK");
+                        $note.find('.no').val(val.no);
+                        $note.find('.color').val(val.color);
+                        $note.css('background-image', color(val.color));
+                        $note.css('position', val.position);
+                        $note.css('top', val.top);
+                        $note.css('left', val.left);
+                        $note.css('width', val.width);
+                        $note.css('height', val.height);
+                        $note.find('.timestamp').val(val.timestamp);
+                        $note.find('.delete').val(val.delete);
+                    });
+                }
+                
+                // 付箋紙の背景色
+                function color(val)
+                {
+                    let result = "";
+                    switch(val)
+                    {
+                        case "blue":
+                            result = "linear-gradient(180deg, hsla(0, 0%, 45%, 0.1) 2rem, hsla(0, 100%, 100%, 0) 2.5rem)," +
+                                     "linear-gradient(180deg, hsla(200, 100%, 85%, 1), hsla(200, 100%, 85%, 1))";
+                            break;
+                        case "red":
+                            result = "linear-gradient(180deg, hsla(0, 0%, 45%, 0.1) 2rem, hsla(0, 100%, 100%, 0) 2.5rem)," +
+                                     "linear-gradient(180deg, hsla(0, 100%, 85%, 1), hsla(0, 100%, 85%, 1))";
+                            break;
+                        case "yellow":
+                            result = "linear-gradient(180deg, hsla(0, 0%, 45%, 0.1) 2rem, hsla(0, 100%, 100%, 0) 2.5rem)," +
+                                     "linear-gradient(180deg, hsla(60, 100%, 85%, 1), hsla(60, 100%, 85%, 1))";
+                            break;
+                        case "green":
+                            result = "linear-gradient(180deg, hsla(0, 0%, 45%, 0.1) 2rem, hsla(0, 100%, 100%, 0) 2.5rem)," +
+                                     "linear-gradient(180deg, hsla(120, 100%, 85%, 1), hsla(120, 100%, 85%, 1))";
+                            break;
+                        case "purple":
+                            result = "linear-gradient(180deg, hsla(0, 0%, 45%, 0.1) 2rem, hsla(0, 100%, 100%, 0) 2.5rem)," +
+                                     "linear-gradient(180deg, hsla(280, 100%, 85%, 1), hsla(280, 100%, 85%, 1))";
+                            break;
+                         case "orange":
+                            result = "linear-gradient(180deg, hsla(0, 0%, 45%, 0.1) 2rem, hsla(0, 100%, 100%, 0) 2.5rem)," +
+                                     "linear-gradient(180deg, hsla(30, 100%, 85%, 1), hsla(30, 100%, 85%, 1))";
+                            break;
+                    }
+                    return result;
+                }
+            });
+        </script>
+        <style type="text/css">
+            body
+            {
+                background-color: #fff;
+                font-family: Verdana, Arial, sans-serif;
+            }
+            #add
+            {
+                z-index: 20;
+            }
+            #download
+            {
+                z-index: 20;
+            }
+            #error
+            {
+                color: red;
+            }
+            .note
+            {
+                width: 200px;
+                height: 100px;
+                padding: 40px 10px 20px 10px;
+                overflow: hidden;
+                box-shadow: 0 0.25rem 0.25rem hsla(0, 0%, 0%, 0.1);
+                font-size: 1.0rem;
+                white-space: pre-wrap;
+                line-height: 1.4;
+                cursor: pointer;
+                z-index: 10;
+            }
+            .url
+            {
+                position: absolute;
+                top: 2px;
+                right: 10px;
+            }
+            #dialog
+            {
+                display: none;
+                z-index: 30;
+            }
+            #dialog_message
+            {
+                width: 100%;
+                resize: none;
+            }
+            #dialog_url
+            {
+                width: 100%;
+            }
+            #dialog_radio input[type="radio"]:not(:first-child)
+            {
+                margin-left: 20px;
+            }
+        </style>
+        <link rel="stylesheet" href="https://ajax.aspnetcdn.com/ajax/jquery.ui/1.13.0/themes/base/jquery-ui.css">
+        <title>Sticky Notes</title>
+    </head>
+    <body>
+        <button id="add">Add</button>
+        <button id="download">Download</button>
+        <div id="error"></div>
+        <div id="container"></div>
+        <div id="dialog">
+            <form>
+                <label for="dialog_message">本文</label><br>
+                <textarea id="dialog_message" name="dialog_message" rows="5" ></textarea><br><br>
+                <label for="dialog_url">URL</label><br>
+                <input type="text" id="dialog_url" name="dialog_url" /><br><br>
+                <div id="dialog_radio">
+                    <input type="radio" id="dialog_blue" name="dialog_color" value="blue" />
+                    <label for="dialog_blue">青</label>
+                    <input type="radio" id="dialog_red" name="dialog_color" value="red" />
+                    <label for="dialog_red">赤</label>
+                    <input type="radio" id="dialog_yellow" name="dialog_color" value="yellow" />
+                    <label for="dialog_yellow">黄</label>
+                    <input type="radio" id="dialog_green" name="dialog_color" value="green" />
+                    <label for="dialog_green">緑</label>
+                    <input type="radio" id="dialog_purple" name="dialog_color" value="purple" />
+                    <label for="dialog_purple">紫</label>
+                    <input type="radio" id="dialog_orange" name="dialog_color" value="orange" />
+                    <label for="dialog_orange">橙</label>
+                </div>
+                <input type="hidden" id="dialog_target" />
+                <input type="hidden" id="dialog_timestamp" />
+            </form>
+        </div>
+    </body>
+</html>
