@@ -61,13 +61,13 @@ namespace StickyNotes
                 while(true)
                 {
                     WebSocketReceiveResult result = null;
-                    var allBytes = new List<byte>();
+                    var data = new List<byte>();
                     do
                     {
                         result = await socket.ReceiveAsync(buffer, CancellationToken.None);
                         for(var i = 0; i <result.Count; i++)
                         {
-                            allBytes.Add(buffer.Array[i]);
+                            data.Add(buffer.Array[i]);
                         }
                     }
                     while(!result.EndOfMessage);
@@ -79,20 +79,8 @@ namespace StickyNotes
                     }
                     else if(result.MessageType == WebSocketMessageType.Text)
                     {
-                        var storage = new StickyStorage(context.Server.MapPath("~"));
-                        if(result.Count > 0)
-                        {
-                            var json = JObject.Parse(Encoding.UTF8.GetString(allBytes.ToArray(), 0, allBytes.Count));
-                            var note = JsonConvert.DeserializeObject<Note>(json.ToString());
-                            if(note.No == 0)
-                            {
-                                storage.Insert(note, context.UserHostAddress);
-                            }
-                            else
-                            {
-                                storage.Update(note, context.UserHostAddress);
-                            }
-                        }
+                        var storage = new StickyStorage(context.Server.MapPath("~"), context.UserHostAddress);
+                        this.SaveStorage(storage, data);
                         this.Broadcast(JsonConvert.SerializeObject(storage.Select(), Formatting.None));
                     }
                 }
@@ -109,6 +97,23 @@ namespace StickyNotes
             }
         }
         
+        private void SaveStorage(StickyStorage storage, List<byte> data)
+        {
+            if(data.Count > 0)
+            {
+                var json = JObject.Parse(Encoding.UTF8.GetString(data.ToArray(), 0, data.Count));
+                var note = JsonConvert.DeserializeObject<Note>(json.ToString());
+                if(note.No == 0)
+                {
+                    storage.Insert(note);
+                }
+                else
+                {
+                    storage.Update(note);
+                }
+            }
+        }
+        
         private void Broadcast(string message)
         {
             foreach(var handler in connectedHandlers)
@@ -121,11 +126,13 @@ namespace StickyNotes
     
     public class StickyStorage
     {
-        private string connectionString;
+        private string connectionString = string.Empty;
+        private string address = string.Empty;
         
-        public StickyStorage(string path)
+        public StickyStorage(string path, string address)
         {
             this.connectionString = new SQLiteConnectionStringBuilder { DataSource = path + "/db.sqlite" }.ToString();
+            this.address = address;
             using(var connection = new SQLiteConnection(this.connectionString))
             {
                 connection.Open();
@@ -149,7 +156,7 @@ namespace StickyNotes
             }
         }
         
-        public void Insert(Note note, string ip)
+        public void Insert(Note note)
         {
             using(var connection = new SQLiteConnection(this.connectionString))
             {
@@ -165,13 +172,13 @@ namespace StickyNotes
                     command.Parameters.Add(new SQLiteParameter("@LEFT", note.Left));
                     command.Parameters.Add(new SQLiteParameter("@WIDTH", note.Width));
                     command.Parameters.Add(new SQLiteParameter("@HEIGHT", note.Height));
-                    command.Parameters.Add(new SQLiteParameter("@IP", ip));
+                    command.Parameters.Add(new SQLiteParameter("@IP", this.address));
                     command.ExecuteNonQuery();
                 }
             }
         }
         
-        public void Update(Note note, string ip)
+        public void Update(Note note)
         {
             using(var connection = new SQLiteConnection(this.connectionString))
             {
@@ -187,7 +194,7 @@ namespace StickyNotes
                     command.Parameters.Add(new SQLiteParameter("@LEFT", note.Left));
                     command.Parameters.Add(new SQLiteParameter("@WIDTH", note.Width));
                     command.Parameters.Add(new SQLiteParameter("@HEIGHT", note.Height));
-                    command.Parameters.Add(new SQLiteParameter("@IP", ip));
+                    command.Parameters.Add(new SQLiteParameter("@IP", this.address));
                     command.Parameters.Add(new SQLiteParameter("@DELFLG", note.Delete));
                     command.Parameters.Add(new SQLiteParameter("@NO", note.No));
                     command.ExecuteNonQuery();
@@ -231,8 +238,8 @@ namespace StickyNotes
     
     public class LogUtil
     {
-        private string logFile = "";
-        private string address = "";
+        private string logFile = string.Empty;
+        private string address = string.Empty;
         
         public LogUtil(string path, string address)
         {

@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8" />
         <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.6.0.min.js"></script>
-        <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min.js"></script>
+        <script src="https://ajax.aspnetcdn.com/ajax/jquery.ui/1.13.0/jquery-ui.min.js"></script>
         <script type="text/javascript">
             $(function()
             {
@@ -109,6 +109,7 @@
                             $(this).css('position', 'absolute');
                             $(this).css('top', ui.offset.top);
                             $(this).css('left', ui.offset.left);
+                            grid('#' + $(this).attr('id'));
                             send('#' + $(this).attr('id'));
                         }
                     });
@@ -120,6 +121,7 @@
                         maxHeight: 400,
                         stop: function(e, ui)
                         {
+                            grid('#' + $(this).attr('id'));
                             send('#' + $(this).attr('id'));
                         }
                     });
@@ -141,7 +143,16 @@
                     return $note;
                 }
                 
-                // ダイアログ設定
+                // 付箋紙の位置調整
+                function grid(target)
+                {
+                    $(target).css('top', Math.round($(target).position().top / 10) * 10);
+                    $(target).css('left', Math.round($(target).position().left / 10) * 10);
+                    $(target).width(Math.round($(target).width() / 10) * 10);
+                    $(target).height(Math.round($(target).height() / 10) * 10);
+                }
+                
+                // ダイアログの設定
                 $('#dialog').dialog(
                 {
                     autoOpen: false,
