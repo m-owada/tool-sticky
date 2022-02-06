@@ -49,6 +49,32 @@
                     connect();
                 }
                 
+                // 初期化
+                $(document).ready(function()
+                {
+                    set_option();
+                    background($('#dialog_bg-image').val(), $('#dialog_bg-color').val());
+                });
+                
+                // オプション反映
+                function set_option()
+                {
+                    $('#dialog_grid').prop("checked", get_storage("Grid", "true").toLowerCase() == "true");
+                    $('#dialog_bg-image').val(get_storage("Image", "none"));
+                    $('#dialog_bg-color').val(get_storage("Color", "none"));
+                }
+                
+                // ストレージ参照
+                function get_storage(key, val)
+                {
+                    let item = localStorage.getItem(key);
+                    if(item == null)
+                    {
+                        item = val;
+                    }
+                    return item;
+                }
+                
                 // Addボタン設定
                 $('#add').button(
                 {
@@ -66,28 +92,21 @@
                     send('#' + $note.attr('id'));
                 });
                 
-                // Downloadボタン設定
-                $('#download').button(
+                // Optionボタン設定
+                $('#option').button(
                 {
                     icons:
                     {
-                        primary: "ui-icon-document"
+                        primary: "ui-icon-gear"
                     },
                     text: true
                 });
                 
-                // Downloadボタン押下
-                $('#download').click(function()
+                // Optionボタン押下
+                $('#option').click(function()
                 {
-                    let blob = new Blob([json], { type: "application\/json" });
-                    if(window.navigator.msSaveBlob)
-                    {
-                        window.navigator.msSaveBlob(blob, "notes.json");
-                    }
-                    else
-                    {
-                        $('<a></a>', { href: window.URL.createObjectURL(blob), download: "notes.json", target: "_blank" })[0].click();
-                    }
+                    set_option();
+                    $('#dialog_option').dialog("open");
                 });
                 
                 // 付箋紙の追加
@@ -146,13 +165,16 @@
                 // 付箋紙の位置調整
                 function grid(target)
                 {
-                    $(target).css('top', Math.round($(target).position().top / 10) * 10);
-                    $(target).css('left', Math.round($(target).position().left / 10) * 10);
-                    $(target).width(Math.round($(target).width() / 10) * 10);
-                    $(target).height(Math.round($(target).height() / 10) * 10);
+                    if($('#dialog_grid').prop("checked"))
+                    {
+                        $(target).css('top', Math.round($(target).position().top / 10) * 10);
+                        $(target).css('left', Math.round($(target).position().left / 10) * 10);
+                        $(target).width(Math.round($(target).width() / 10) * 10);
+                        $(target).height(Math.round($(target).height() / 10) * 10);
+                    }
                 }
                 
-                // ダイアログの設定
+                // ダイアログ
                 $('#dialog').dialog(
                 {
                     autoOpen: false,
@@ -213,6 +235,46 @@
                         {
                             $(this).dialog("close");
                         }
+                    }
+                });
+                
+                // オプション
+                $('#dialog_option').dialog(
+                {
+                    autoOpen: false,
+                    width: 560,
+                    height: "auto",
+                    modal: true,
+                    resizable: false,
+                    title: "Option",
+                    buttons:
+                    {
+                        "保存": function()
+                        {
+                            localStorage.setItem('Grid', $('#dialog_grid').prop("checked"));
+                            localStorage.setItem('Image', $('#dialog_bg-image').val());
+                            localStorage.setItem('Color', $('#dialog_bg-color').val());
+                            background($('#dialog_bg-image').val(), $('#dialog_bg-color').val());
+                            $(this).dialog("close");
+                        },
+                        "中止": function()
+                        {
+                            $(this).dialog("close");
+                        }
+                    }
+                });
+                
+                // ダウンロード
+                $('#dialog_download').click(function()
+                {
+                    let blob = new Blob([json], { type: "application\/json" });
+                    if(window.navigator.msSaveBlob)
+                    {
+                        window.navigator.msSaveBlob(blob, "notes.json");
+                    }
+                    else
+                    {
+                        $('<a></a>', { href: window.URL.createObjectURL(blob), download: "notes.json", target: "_blank" })[0].click();
                     }
                 });
                 
@@ -298,19 +360,67 @@
                     }
                     return result;
                 }
+                
+                // 背景設定
+                function background(val, clr)
+                {
+                    let bg_color = "";
+                    switch(clr)
+                    {
+                        case "blue":
+                            bg_color = "hsla(200, 100%, 95%, 1)";
+                            break;
+                        case "red":
+                            bg_color = "hsla(0, 100%, 95%, 1)";
+                            break;
+                        case "yellow":
+                            bg_color = "hsla(60, 100%, 90%, 1)";
+                            break;
+                        case "green":
+                            bg_color = "hsla(120, 100%, 95%, 1)";
+                            break;
+                        case "purple":
+                            bg_color = "hsla(280, 100%, 95%, 1)";
+                            break;
+                        case "orange":
+                            bg_color = "hsla(30, 100%, 95%, 1)";
+                            break;
+                        default:
+                            bg_color = "hsla(0, 0%, 95%, 1)";
+                            break;
+                    }
+                    switch(val)
+                    {
+                        case "box":
+                            $('body').css('background-image', 'linear-gradient(' + bg_color + ' 2px, transparent 2px), linear-gradient(to right, ' + bg_color + ' 2px, #fff 2px)');
+                            $('body').css('background-size', '20px 20px');
+                            break;
+                        case "dot":
+                            $('body').css('background-image', 'radial-gradient(' + bg_color + ' 2px, #fff 2px)');
+                            $('body').css('background-size', '20px 20px');
+                            break;
+                        case "stripe":
+                            $('body').css('background-image', 'repeating-linear-gradient(45deg, ' + bg_color + ' 0, ' + bg_color + ' 2px, #fff 0, #fff 50%)');
+                            $('body').css('background-size', '20px 20px');
+                            break;
+                        default:
+                            $('body').css('background-image', 'none');
+                            $('body').css('background-size', 'auto');
+                            break;
+                    }
+                }
             });
         </script>
         <style type="text/css">
             body
             {
-                background-color: #fff;
                 font-family: Verdana, Arial, sans-serif;
             }
             #add
             {
                 z-index: 20;
             }
-            #download
+            #option
             {
                 z-index: 20;
             }
@@ -351,9 +461,15 @@
             {
                 width: 100%;
             }
-            #dialog_radio input[type="radio"]:not(:first-child)
+            .dialog_radio input[type="radio"]:not(:first-child)
             {
-                margin-left: 20px;
+                margin-left: 24px;
+            }
+            #dialog_option
+            {
+                display: none;
+                z-index: 30;
+                line-height: 42px;
             }
         </style>
         <link rel="stylesheet" href="https://ajax.aspnetcdn.com/ajax/jquery.ui/1.13.0/themes/base/jquery-ui.css">
@@ -361,7 +477,7 @@
     </head>
     <body>
         <button id="add">Add</button>
-        <button id="download">Download</button>
+        <button id="option">Option</button>
         <div id="error"></div>
         <div id="container"></div>
         <div id="dialog">
@@ -370,7 +486,7 @@
                 <textarea id="dialog_message" name="dialog_message" rows="5" ></textarea><br><br>
                 <label for="dialog_url">URL</label><br>
                 <input type="text" id="dialog_url" name="dialog_url" /><br><br>
-                <div id="dialog_radio">
+                <div class="dialog_radio">
                     <input type="radio" id="dialog_blue" name="dialog_color" value="blue" />
                     <label for="dialog_blue">青</label>
                     <input type="radio" id="dialog_red" name="dialog_color" value="red" />
@@ -386,6 +502,33 @@
                 </div>
                 <input type="hidden" id="dialog_target" />
                 <input type="hidden" id="dialog_timestamp" />
+            </form>
+        </div>
+        <div id="dialog_option">
+            <form>
+                <div>以下の設定はローカルストレージに保存されます。</div>
+                <span>【付箋】</span>
+                <input type="checkbox" id="dialog_grid" name="dialog_grid" />
+                <label for="dialog_grid">グリッドに沿って配置する。</label><br>
+                <span>【背景】</span>
+                <label for="dialog_bg-image">パターン：</label>
+                <select id="dialog_bg-image">
+                    <option value="none">なし</option>
+                    <option value="box">ボックス</option>
+                    <option value="dot">ドット</option>
+                    <option value="stripe">ストライプ</option>
+                </select>
+                <label for="dialog_bg-color">　カラー：</label>
+                <select id="dialog_bg-color">
+                    <option value="none">なし</option>
+                    <option value="blue">青</option>
+                    <option value="red">赤</option>
+                    <option value="yellow">黄</option>
+                    <option value="green">緑</option>
+                    <option value="purple">紫</option>
+                    <option value="orange">橙</option>
+                </select>
+                <div>※JSONデータをダウンロードする場合は<a id="dialog_download" href="javascript:void(0);">ここ</a>をクリックしてください。</div>
             </form>
         </div>
     </body>
