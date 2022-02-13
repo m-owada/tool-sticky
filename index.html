@@ -60,6 +60,7 @@
                 function set_option()
                 {
                     $('#dialog_grid').prop("checked", get_storage("Grid", "true").toLowerCase() == "true");
+                    $('#dialog_size').prop("checked", get_storage("Size", "false").toLowerCase() == "true");
                     $('#dialog_bg-image').val(get_storage("Image", "none"));
                     $('#dialog_bg-color').val(get_storage("Color", "none"));
                 }
@@ -89,6 +90,7 @@
                 $('#add').click(function()
                 {
                     let $note = add();
+                    load_size($note);
                     send('#' + $note.attr('id'));
                 });
                 
@@ -252,6 +254,7 @@
                         "保存": function()
                         {
                             localStorage.setItem('Grid', $('#dialog_grid').prop("checked"));
+                            localStorage.setItem('Size', $('#dialog_size').prop("checked"));
                             localStorage.setItem('Image', $('#dialog_bg-image').val());
                             localStorage.setItem('Color', $('#dialog_bg-color').val());
                             background($('#dialog_bg-image').val(), $('#dialog_bg-color').val());
@@ -296,6 +299,7 @@
                         timestamp: $(target).find('.timestamp').val(),
                         delete: Number($(target).find('.delete').val())
                     }
+                    save_size(target);
                     socket.send(JSON.stringify(note));
                 }
                 
@@ -325,6 +329,26 @@
                         $note.find('.timestamp').val(val.timestamp);
                         $note.find('.delete').val(val.delete);
                     });
+                }
+                
+                // 付箋紙サイズの保存
+                function save_size(target)
+                {
+                    if($(target).find('.delete').val() == "0")
+                    {
+                        localStorage.setItem('Width', $(target).css('width'));
+                        localStorage.setItem('Height', $(target).css('height'));
+                    }
+                }
+                
+                // 付箋紙サイズの読込
+                function load_size(target)
+                {
+                    if($('#dialog_size').prop("checked"))
+                    {
+                         $(target).css('width', get_storage("Width", "200px"));
+                         $(target).css('height', get_storage("Height", "100px"));
+                    }
                 }
                 
                 // 付箋紙の背景色
@@ -399,6 +423,10 @@
                             $('body').css('background-image', 'radial-gradient(' + bg_color + ' 2px, #fff 2px)');
                             $('body').css('background-size', '20px 20px');
                             break;
+                        case "border":
+                            $('body').css('background-image', 'linear-gradient(0deg, ' + bg_color + ' 50%, #fff 50%)');
+                            $('body').css('background-size', '20px 20px');
+                            break;
                         case "stripe":
                             $('body').css('background-image', 'repeating-linear-gradient(45deg, ' + bg_color + ' 0, ' + bg_color + ' 2px, #fff 0, #fff 50%)');
                             $('body').css('background-size', '20px 20px');
@@ -414,6 +442,7 @@
         <style type="text/css">
             body
             {
+                background-color: #fff;
                 font-family: Verdana, Arial, sans-serif;
             }
             #add
@@ -471,6 +500,11 @@
                 z-index: 30;
                 line-height: 42px;
             }
+            .dialog_label
+            {
+                display: inline-block;
+                width: 64px;
+            }
         </style>
         <link rel="stylesheet" href="https://ajax.aspnetcdn.com/ajax/jquery.ui/1.13.0/themes/base/jquery-ui.css">
         <title>Sticky Notes</title>
@@ -507,15 +541,19 @@
         <div id="dialog_option">
             <form>
                 <div>以下の設定はローカルストレージに保存されます。</div>
-                <span>【付箋】</span>
+                <span class="dialog_label">【付箋】</span>
                 <input type="checkbox" id="dialog_grid" name="dialog_grid" />
                 <label for="dialog_grid">グリッドに沿って配置する。</label><br>
-                <span>【背景】</span>
+                <span class="dialog_label"></span>
+                <input type="checkbox" id="dialog_size" name="dialog_size" />
+                <label for="dialog_size">デフォルトサイズを記憶する。</label><br>
+                <span class="dialog_label">【背景】</span>
                 <label for="dialog_bg-image">パターン：</label>
                 <select id="dialog_bg-image">
                     <option value="none">なし</option>
                     <option value="box">ボックス</option>
                     <option value="dot">ドット</option>
+                    <option value="border">ボーダー</option>
                     <option value="stripe">ストライプ</option>
                 </select>
                 <label for="dialog_bg-color">　カラー：</label>
