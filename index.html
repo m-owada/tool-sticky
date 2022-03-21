@@ -43,7 +43,7 @@
                 function disconnect()
                 {
                     $('#add').hide();
-                    $('#download').hide();
+                    $('#option').hide();
                     $('#error').text("サーバーに接続できませんでした。しばらく時間をおいて再度お試しください。");
                     $('.note').remove();
                     connect();
@@ -307,7 +307,7 @@
                 function load(data)
                 {
                     $('#add').show();
-                    $('#download').show();
+                    $('#option').show();
                     $('#error').text("");
                     $(".note").remove();
                     let notes = JSON.parse(data);
