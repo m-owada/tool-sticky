@@ -65,7 +65,7 @@ namespace StickyNotes
                     do
                     {
                         result = await socket.ReceiveAsync(buffer, CancellationToken.None);
-                        for(var i = 0; i <result.Count; i++)
+                        for(var i = 0; i < result.Count; i++)
                         {
                             data.Add(buffer.Array[i]);
                         }

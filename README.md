@@ -1,4 +1,4 @@
-# Sticky Notes
+# ![Sticky Notes](favicon.ico) Sticky Notes
 
 ## 概要
 
